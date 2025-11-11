@@ -48,13 +48,123 @@
 
   <p id="message" class="message"></p>
 
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+
   <script>
-    function checkSentence() {
+    let pyodideReady = false;
+    let pyodide;
+
+    //
+    async function loadPy() {
+      pyodide = await loadPyodide();
+      pyodideReady = true;
+      console.log("✅ Pyodide loaded");
+    }
+    loadPy();
+
+    // 
+    async function checkSentence() {
       const sentence = document.getElementById("sentenceInput").value.trim();
-      const words = sentence.split(/\s+/).filter(word => word.length > 0);
-      const wordCount = words.length;
       const messageElement = document.getElementById("message");
 
+      if (!pyodideReady) {
+        messageElement.textContent = "⏳ Python loading... try again in 1 sec";
+        messageElement.style.color = "orange";
+        return;
+      }
+
+      // 
+      const wordCount = await pyodide.runPython(`
+from fastapi import FastAPI
+from pydantic import BaseModel
+import re
+import nltk
+import numpy as np
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import gensim.downloader as api
+from transformers import AutoTokenizer, AutoModel
+from sklearn.ensemble import RandomForestClassifier
+import torch
+import joblib
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+app = FastAPI()
+
+stop_words = set(stopwords.words("english"))
+word2vec = api.load('glove-wiki-gigaword-100')
+
+# Load pretrained models (you'll train & save these from your notebook)
+model_openness = joblib.load("model_openness.pkl")
+model_agreeableness = joblib.load("model_agreeableness.pkl")
+
+tokenizer_albert = AutoTokenizer.from_pretrained("albert-base-v2")
+model_albert = AutoModel.from_pretrained("albert-base-v2")
+model_neuroticism = joblib.load("model_neuroticism.pkl")
+
+tokenizer_tinybert = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+model_tinybert = AutoModel.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+model_extraversion = joblib.load("model_extraversion.pkl")
+
+tokenizer_electra = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
+model_electra = AutoModel.from_pretrained("google/electra-base-discriminator")
+model_conscientiousness = joblib.load("model_conscientiousness.pkl")
+
+def preprocess_text(text):
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'\|', ' ', text)
+    text = re.sub(r'[^a-zA-Z\s]', '', text.lower())
+    tokens = word_tokenize(text)
+    tokens = [word for word in tokens if word not in stop_words]
+    return tokens
+
+def get_post_vector(tokens):
+    vectors = [word2vec[word] for word in tokens if word in word2vec]
+    return np.mean(vectors, axis=0) if vectors else np.zeros(100)
+
+def get_embedding(text, tokenizer, model):
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    return outputs.last_hidden_state[:, 0, :].cpu().numpy().flatten()
+
+class InputText(BaseModel):
+    sentence: str
+
+@app.post("/predict")
+def predict_traits(data: InputText):
+    sentence = data.sentence
+    tokens = preprocess_text(sentence)
+    word_count = len(tokens)
+
+    if word_count < 20 or word_count > 30:
+        return {"error": f"Sentence must be between 20 and 30 words (you entered {word_count})."}
+
+    vector = get_post_vector(tokens)
+    
+    # Predict using different models
+    openness = int(model_openness.predict([vector])[0])
+    agreeableness = int(model_agreeableness.predict([vector])[0])
+    neuro_embedding = get_embedding(sentence, tokenizer_albert, model_albert)
+    extrav_embedding = get_embedding(sentence, tokenizer_tinybert, model_tinybert)
+    consc_embedding = get_embedding(sentence, tokenizer_electra, model_electra)
+
+    neuroticism = int(model_neuroticism.predict([neuro_embedding])[0])
+    extraversion = int(model_extraversion.predict([extrav_embedding])[0])
+    conscientiousness = int(model_conscientiousness.predict([consc_embedding])[0])
+
+    return {
+        "Openness": openness,
+        "Agreeableness": agreeableness,
+        "Neuroticism": neuroticism,
+        "Extraversion": extraversion,
+        "Conscientiousness": conscientiousness
+    }
+      `);
+
+      // 
       if (wordCount < 20) {
         messageElement.textContent = `❌ Too short! You only wrote ${wordCount} words.`;
         messageElement.style.color = "red";
