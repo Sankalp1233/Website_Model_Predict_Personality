@@ -48,33 +48,8 @@
 
   <p id="message" class="message"></p>
 
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
 
-  <script>
-    let pyodideReady = false;
-    let pyodide;
-
-    //
-    async function loadPy() {
-      pyodide = await loadPyodide();
-      pyodideReady = true;
-      console.log("✅ Pyodide loaded");
-    }
-    loadPy();
-
-    // 
-    async function checkSentence() {
-      const sentence = document.getElementById("sentenceInput").value.trim();
-      const messageElement = document.getElementById("message");
-
-      if (!pyodideReady) {
-        messageElement.textContent = "⏳ Python loading... try again in 1 sec";
-        messageElement.style.color = "orange";
-        return;
-      }
-
-      // 
-      const wordCount = await pyodide.runPython(`
+<script>
 from fastapi import FastAPI
 from pydantic import BaseModel
 import re
