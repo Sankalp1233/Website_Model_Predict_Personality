@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+numpy
+nltk
+gensim
+torch
+transformers
+scikit-learn
+joblib
