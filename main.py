@@ -1,3 +1,4 @@
+print("Starting app startup...")
 import os
 import re
 import numpy as np
@@ -13,9 +14,11 @@ from transformers import AutoTokenizer, AutoModel
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
+print("Downloading NLTK data...")
 # Download required NLTK data at startup
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
+print("NLTK data ready.")
 
 app = FastAPI(
     title="Personality Trait Predictor",
@@ -35,29 +38,53 @@ app.add_middleware(
 # Load resources at startup (this happens once when the app starts)
 print("Loading models and embeddings...")
 
+print("Loading stop words...")
 stop_words = set(stopwords.words("english"))
+print("Stop words loaded.")
 
 # GloVe for Openness & Agreeableness
-word2vec = gensim.models.KeyedVectors.load('glove-wiki-gigaword-100.kv')
+print("Loading GloVe from file...")
+word2vec = gensim.models.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
+print("GloVe loaded successfully.")
 
 # Load your trained RandomForest models (adjust paths if in a subfolder)
+print("Loading model_openness.pkl...")
 model_openness = joblib.load("models/model_openness.pkl")
+print("model_openness loaded.")
+
+print("Loading model_agreeableness.pkl...")
 model_agreeableness = joblib.load("models/model_agreeableness.pkl")
+print("model_agreeableness loaded.")
+
+print("Loading model_neuroticism.pkl...")
 model_neuroticism = joblib.load("models/model_neuroticism.pkl")
+print("model_neuroticism loaded.")
+
+print("Loading model_extraversion.pkl...")
 model_extraversion = joblib.load("models/model_extraversion.pkl")
+print("model_extraversion loaded.")
+
+print("Loading model_conscientiousness.pkl...")
 model_conscientiousness = joblib.load("models/model_conscientiousness.pkl")
+print("model_conscientiousness loaded.")
 
 # Transformers
+print("Loading ALBERT tokenizer and model...")
 tokenizer_albert = AutoTokenizer.from_pretrained("albert-base-v2")
 model_albert = AutoModel.from_pretrained("albert-base-v2")
+print("ALBERT loaded.")
 
+print("Loading TinyBERT tokenizer and model...")
 tokenizer_tinybert = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
 model_tinybert = AutoModel.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+print("TinyBERT loaded.")
 
+print("Loading ELECTRA tokenizer and model...")
 tokenizer_electra = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
 model_electra = AutoModel.from_pretrained("google/electra-base-discriminator")
+print("ELECTRA loaded.")
 
-print("All models loaded successfully!")
+print("All models and resources loaded successfully!")
 
 
 class InputText(BaseModel):
