@@ -1,9 +1,7 @@
-print("Starting app startup...")
 import os
 import re
 import numpy as np
 import nltk
-import gensim.downloader as api
 import gensim.models.keyedvectors
 import torch
 from fastapi import FastAPI
@@ -15,8 +13,8 @@ from transformers import AutoTokenizer, AutoModel
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
+# Download NLTK data at startup (this is fast and safe)
 print("Downloading NLTK data...")
-# Download required NLTK data at startup
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 print("NLTK data ready.")
@@ -27,83 +25,92 @@ app = FastAPI(
     version="1.0"
 )
 
-# Allow your frontend to call this API (change "*" to your actual frontend URL later for security)
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with e.g. "https://your-frontend.onrender.com"
+    allow_origins=["*"],  # Change to your GitHub Pages URL later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load resources at startup (this happens once when the app starts)
-print("Loading models and embeddings...")
+# Global variables - start as None
+word2vec = None
+model_openness = None
+model_agreeableness = None
+model_neuroticism = None
+model_extraversion = None
+model_conscientiousness = None
+tokenizer_albert = None
+model_albert = None
+tokenizer_tinybert = None
+model_tinybert = None
+tokenizer_electra = None
+model_electra = None
 
-print("Loading stop words...")
-stop_words = set(stopwords.words("english"))
-print("Stop words loaded.")
+stop_words = None
 
-# GloVe for Openness & Agreeableness
-print("Loading GloVe from file...")
-word2vec = gensim.models.keyedvectors.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
-print("GloVe loaded successfully.")
+def load_resources():
+    global word2vec, model_openness, model_agreeableness, model_neuroticism, model_extraversion, model_conscientiousness
+    global tokenizer_albert, model_albert, tokenizer_tinybert, model_tinybert, tokenizer_electra, model_electra
+    global stop_words
 
-# Load your trained RandomForest models (adjust paths if in a subfolder)
-print("Loading model_openness.pkl...")
-model_openness = joblib.load("models/model_openness.pkl")
-print("model_openness loaded.")
+    if word2vec is not None:
+        print("Resources already loaded.")
+        return
 
-print("Loading model_agreeableness.pkl...")
-model_agreeableness = joblib.load("models/model_agreeableness.pkl")
-print("model_agreeableness loaded.")
+    print("Lazy loading resources on first request...")
 
-print("Loading model_neuroticism.pkl...")
-model_neuroticism = joblib.load("models/model_neuroticism.pkl")
-print("model_neuroticism loaded.")
+    print("Loading stop words...")
+    stop_words = set(stopwords.words("english"))
+    print("Stop words loaded.")
 
-print("Loading model_extraversion.pkl...")
-model_extraversion = joblib.load("models/model_extraversion.pkl")
-print("model_extraversion loaded.")
+    print("Loading GloVe from file...")
+    word2vec = gensim.models.keyedvectors.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
+    print("GloVe loaded successfully.")
 
-print("Loading model_conscientiousness.pkl...")
-model_conscientiousness = joblib.load("models/model_conscientiousness.pkl")
-print("model_conscientiousness loaded.")
+    print("Loading models...")
+    model_openness = joblib.load("models/model_openness.pkl")
+    print("model_openness loaded.")
+    model_agreeableness = joblib.load("models/model_agreeableness.pkl")
+    print("model_agreeableness loaded.")
+    model_neuroticism = joblib.load("models/model_neuroticism.pkl")
+    print("model_neuroticism loaded.")
+    model_extraversion = joblib.load("models/model_extraversion.pkl")
+    print("model_extraversion loaded.")
+    model_conscientiousness = joblib.load("models/model_conscientiousness.pkl")
+    print("model_conscientiousness loaded.")
 
-# Transformers
-print("Loading ALBERT tokenizer and model...")
-tokenizer_albert = AutoTokenizer.from_pretrained("albert-base-v2")
-model_albert = AutoModel.from_pretrained("albert-base-v2")
-print("ALBERT loaded.")
+    print("Loading ALBERT...")
+    tokenizer_albert = AutoTokenizer.from_pretrained("albert-base-v2")
+    model_albert = AutoModel.from_pretrained("albert-base-v2")
+    print("ALBERT loaded.")
 
-print("Loading TinyBERT tokenizer and model...")
-tokenizer_tinybert = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
-model_tinybert = AutoModel.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
-print("TinyBERT loaded.")
+    print("Loading TinyBERT...")
+    tokenizer_tinybert = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+    model_tinybert = AutoModel.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+    print("TinyBERT loaded.")
 
-print("Loading ELECTRA tokenizer and model...")
-tokenizer_electra = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
-model_electra = AutoModel.from_pretrained("google/electra-base-discriminator")
-print("ELECTRA loaded.")
+    print("Loading ELECTRA...")
+    tokenizer_electra = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
+    model_electra = AutoModel.from_pretrained("google/electra-base-discriminator")
+    print("ELECTRA loaded.")
 
-print("All models and resources loaded successfully!")
-
+    print("All resources loaded successfully!")
 
 class InputText(BaseModel):
     sentence: str
 
-
 def preprocess_text(text: str):
-    text = re.sub(r'https?://\S+|www\.\S+', '', text)  # remove URLs
-    text = re.sub(r'[^a-zA-Z\s]', '', text.lower())   # remove punctuation & numbers
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'[^a-zA-Z\s]', '', text.lower())
     tokens = word_tokenize(text)
     tokens = [word for word in tokens if word not in stop_words]
     return tokens
 
-
 def get_post_vector(tokens):
     vectors = [word2vec[word] for word in tokens if word in word2vec]
     return np.mean(vectors, axis=0) if vectors else np.zeros(100)
-
 
 def get_embedding(text: str, tokenizer, model):
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
@@ -111,30 +118,25 @@ def get_embedding(text: str, tokenizer, model):
         outputs = model(**inputs)
     return outputs.last_hidden_state[:, 0, :].cpu().numpy().flatten()
 
-
 @app.get("/")
 def home():
     return {"message": "Personality Predictor API is running! Go to /docs for interactive testing."}
 
-
 @app.post("/predict")
 def predict_traits(data: InputText):
+    load_resources()  # This runs only once on first request
+
     sentence = data.sentence.strip()
     tokens = preprocess_text(sentence)
     word_count = len(tokens)
 
     if not (20 <= word_count <= 30):
-        return {
-            "error": f"Sentence must have 20–30 words after cleaning (currently {word_count} words)."
-        }
+        return {"error": f"Sentence must have 20–30 words after cleaning (currently {word_count} words)."}
 
-    # Word2Vec-based features
     vector = get_post_vector(tokens)
-
     openness = int(model_openness.predict([vector])[0])
     agreeableness = int(model_agreeableness.predict([vector])[0])
 
-    # Transformer-based embeddings
     neuro_embedding = get_embedding(sentence, tokenizer_albert, model_albert)
     extra_embedding = get_embedding(sentence, tokenizer_tinybert, model_tinybert)
     consc_embedding = get_embedding(sentence, tokenizer_electra, model_electra)
@@ -151,8 +153,7 @@ def predict_traits(data: InputText):
         "Conscientiousness": conscientiousness
     }
 
-
-# For Render (and local testing)
+# For local testing (Render ignores this block)
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
