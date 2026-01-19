@@ -4,6 +4,7 @@ import re
 import numpy as np
 import nltk
 import gensim.downloader as api
+import gensim.models.keyedvectors
 import torch
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,7 +45,7 @@ print("Stop words loaded.")
 
 # GloVe for Openness & Agreeableness
 print("Loading GloVe from file...")
-word2vec = gensim.models.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
+word2vec = gensim.models.keyedvectors.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
 print("GloVe loaded successfully.")
 
 # Load your trained RandomForest models (adjust paths if in a subfolder)
