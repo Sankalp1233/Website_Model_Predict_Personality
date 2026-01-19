@@ -13,28 +13,7 @@ from transformers import AutoTokenizer, AutoModel
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 
-# Download NLTK data at startup (this is fast and safe)
-print("Downloading NLTK data...")
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
-print("NLTK data ready.")
-
-app = FastAPI(
-    title="Personality Trait Predictor",
-    description="Predict Big Five personality traits from a 20-30 word sentence",
-    version="1.0"
-)
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Change to your GitHub Pages URL later
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Global variables - start as None
+# Globals - start as None
 word2vec = None
 model_openness = None
 model_agreeableness = None
@@ -47,8 +26,21 @@ tokenizer_tinybert = None
 model_tinybert = None
 tokenizer_electra = None
 model_electra = None
-
 stop_words = None
+
+app = FastAPI(
+    title="Personality Trait Predictor",
+    description="Predict Big Five personality traits from a 20-30 word sentence",
+    version="1.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def load_resources():
     global word2vec, model_openness, model_agreeableness, model_neuroticism, model_extraversion, model_conscientiousness
@@ -56,45 +48,36 @@ def load_resources():
     global stop_words
 
     if word2vec is not None:
-        print("Resources already loaded.")
         return
 
     print("Lazy loading resources on first request...")
 
-    print("Loading stop words...")
+    print("Loading NLTK...")
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
     stop_words = set(stopwords.words("english"))
-    print("Stop words loaded.")
+    print("NLTK and stop words ready.")
 
-    print("Loading GloVe from file...")
+    print("Loading GloVe...")
     word2vec = gensim.models.keyedvectors.KeyedVectors.load('models/glove-wiki-gigaword-100.kv')
-    print("GloVe loaded successfully.")
+    print("GloVe loaded.")
 
     print("Loading models...")
     model_openness = joblib.load("models/model_openness.pkl")
-    print("model_openness loaded.")
     model_agreeableness = joblib.load("models/model_agreeableness.pkl")
-    print("model_agreeableness loaded.")
     model_neuroticism = joblib.load("models/model_neuroticism.pkl")
-    print("model_neuroticism loaded.")
     model_extraversion = joblib.load("models/model_extraversion.pkl")
-    print("model_extraversion loaded.")
     model_conscientiousness = joblib.load("models/model_conscientiousness.pkl")
-    print("model_conscientiousness loaded.")
+    print("All models loaded.")
 
-    print("Loading ALBERT...")
+    print("Loading transformers...")
     tokenizer_albert = AutoTokenizer.from_pretrained("albert-base-v2")
     model_albert = AutoModel.from_pretrained("albert-base-v2")
-    print("ALBERT loaded.")
-
-    print("Loading TinyBERT...")
     tokenizer_tinybert = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
     model_tinybert = AutoModel.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
-    print("TinyBERT loaded.")
-
-    print("Loading ELECTRA...")
     tokenizer_electra = AutoTokenizer.from_pretrained("google/electra-base-discriminator")
     model_electra = AutoModel.from_pretrained("google/electra-base-discriminator")
-    print("ELECTRA loaded.")
+    print("Transformers loaded.")
 
     print("All resources loaded successfully!")
 
@@ -124,7 +107,7 @@ def home():
 
 @app.post("/predict")
 def predict_traits(data: InputText):
-    load_resources()  # This runs only once on first request
+    load_resources()  # Loads everything only once
 
     sentence = data.sentence.strip()
     tokens = preprocess_text(sentence)
@@ -153,7 +136,6 @@ def predict_traits(data: InputText):
         "Conscientiousness": conscientiousness
     }
 
-# For local testing (Render ignores this block)
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
