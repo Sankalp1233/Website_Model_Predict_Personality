@@ -38,7 +38,7 @@ print("Loading models and embeddings...")
 stop_words = set(stopwords.words("english"))
 
 # GloVe for Openness & Agreeableness
-word2vec = api.load('glove-wiki-gigaword-100')
+word2vec = gensim.models.KeyedVectors.load('glove-wiki-gigaword-100.kv')
 
 # Load your trained RandomForest models (adjust paths if in a subfolder)
 model_openness = joblib.load("models/model_openness.pkl")
